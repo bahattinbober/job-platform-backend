@@ -73,6 +73,10 @@ export class ResumesController {
   findAll(@Request() req: AuthenticatedRequest) {
     return this.resumesService.findAllForUser(req.user.userId);
   }
+  @Get(':id/matching-jobs')
+  findMatchingJobs(@Param('id') id: string) {
+    return this.resumesService.findMatchingJobs(id);
+  }
 
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {

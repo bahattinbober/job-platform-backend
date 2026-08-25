@@ -9,6 +9,13 @@ import * as fs from 'fs';
 import { PDFParse } from 'pdf-parse';
 import * as mammoth from 'mammoth';
 
+export interface JobMatch {
+  id: string;
+  title: string;
+  location: string | null;
+  distance: number;
+}
+
 @Injectable()
 export class ResumesService {
   constructor(
@@ -31,11 +38,17 @@ export class ResumesService {
 
     if (rawText) {
       const parsedSkills = await this.aiService.extractResumeSkills(rawText);
+      const embedding = await this.aiService.generateEmbedding(rawText);
+      const embeddingString = `[${embedding.join(',')}]`;
 
-      return this.prisma.resume.update({
-        where: { id: resume.id },
-        data: { parsedSkills },
-      });
+      await this.prisma.$executeRaw`
+        UPDATE "Resume"
+        SET "embedding" = ${embeddingString}::vector,
+            "parsedSkills" = ${JSON.stringify(parsedSkills)}::jsonb
+        WHERE "id" = ${resume.id}
+      `;
+
+      return this.prisma.resume.findUnique({ where: { id: resume.id } });
     }
 
     return resume;
@@ -68,6 +81,29 @@ export class ResumesService {
     return this.prisma.resume.delete({
       where: { id: resumeId },
     });
+  }
+
+  async findMatchingJobs(resumeId: string) {
+    const resume = await this.prisma.resume.findUnique({
+      where: { id: resumeId },
+    });
+
+    if (!resume) {
+      throw new NotFoundException('CV bulunamadı');
+    }
+
+    const matches = await this.prisma.$queryRaw<JobMatch[]>`
+      SELECT j.id, j.title, j.location,
+             j.embedding <=> r.embedding AS distance
+      FROM "Job" j, "Resume" r
+      WHERE r.id = ${resumeId}
+        AND j.embedding IS NOT NULL
+        AND r.embedding IS NOT NULL
+      ORDER BY distance ASC
+      LIMIT 10
+    `;
+
+    return matches;
   }
 
   private async extractText(

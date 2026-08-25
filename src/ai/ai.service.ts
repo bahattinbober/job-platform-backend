@@ -8,10 +8,17 @@ interface OpenRouterResponse {
   }[];
 }
 
+interface OpenRouterEmbeddingResponse {
+  data?: {
+    embedding?: number[];
+  }[];
+}
+
 @Injectable()
 export class AiService {
   private readonly apiKey = process.env.OPENROUTER_API_KEY;
-  private readonly model = 'nvidia/nemotron-3.5-lightning:free';
+  private readonly chatModel = 'nvidia/nemotron-3.5-lightning:free';
+  private readonly embeddingModel = 'liquid/lfm-2.5-embedding-350m:free';
 
   async extractResumeSkills(
     rawText: string,
@@ -44,7 +51,7 @@ ${rawText}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: this.model,
+          model: this.chatModel,
           messages: [{ role: 'user', content: prompt }],
         }),
       },
@@ -59,5 +66,29 @@ ${rawText}
     } catch {
       return {};
     }
+  }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.embeddingModel,
+        input: text,
+      }),
+    });
+
+    const data = (await response.json()) as OpenRouterEmbeddingResponse & {
+      error?: unknown;
+    };
+
+    if (!response.ok || data.error) {
+      console.error('OpenRouter embedding error:', response.status, data);
+    }
+
+    return data.data?.[0]?.embedding ?? [];
   }
 }

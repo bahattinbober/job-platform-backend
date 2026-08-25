@@ -52,6 +52,7 @@ model Resume {
 
   rawText      String?
   parsedSkills Json?
+  embedding Unsupported("vector(1024)")?
 
   isActive     Boolean  @default(true)
 
@@ -85,6 +86,7 @@ model Job {
   visaSponsorship Boolean @default(false)
 
   skills         String[]
+  embedding Unsupported("vector(1024)")?
 
   source         String
   sourceUrl      String?
