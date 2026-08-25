@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+
+interface OpenRouterResponse {
+  choices?: {
+    message?: {
+      content?: string;
+    };
+  }[];
+}
 
 @Injectable()
 export class AiService {
-  private readonly client: Anthropic;
-
-  constructor() {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-  }
+  private readonly apiKey = process.env.OPENROUTER_API_KEY;
+  private readonly model = 'nvidia/nemotron-3.5-lightning:free';
 
   async extractResumeSkills(
     rawText: string,
@@ -33,17 +35,27 @@ CV metni:
 ${rawText}
 """`;
 
-    const message = await this.client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      },
+    );
 
-    const responseText =
-      message.content[0].type === 'text' ? message.content[0].text : '{}';
+    const data = (await response.json()) as OpenRouterResponse;
+    const responseText = data.choices?.[0]?.message?.content ?? '{}';
 
     try {
-      return JSON.parse(responseText) as Record<string, string[]>;
+      const cleaned = responseText.replace(/```json|```/g, '').trim();
+      return JSON.parse(cleaned) as Record<string, string[]>;
     } catch {
       return {};
     }
