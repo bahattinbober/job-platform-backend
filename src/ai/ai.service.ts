@@ -17,13 +17,13 @@ interface OpenRouterEmbeddingResponse {
 @Injectable()
 export class AiService {
   private readonly apiKey = process.env.OPENROUTER_API_KEY;
-  private readonly chatModel = 'nvidia/nemotron-3.5-lightning:free';
+  private readonly chatModel = 'liquid/lfm-2.5-2.6b:free';
   private readonly embeddingModel = 'liquid/lfm-2.5-embedding-350m:free';
 
   async extractResumeSkills(
     rawText: string,
   ): Promise<Record<string, string[]>> {
-    const prompt = `Aşağıda bir CV'nin ham metni var. Bu metni analiz et ve içindeki teknik yetenekleri şu kategorilere ayırarak SADECE JSON formatında döndür, başka hiçbir açıklama ekleme:
+    const prompt = `Aşağıda bir CV'nin ham metni var. Bu metni analiz et ve içindeki teknik yetenekleri ve deneyim bilgisini şu şekilde SADECE JSON formatında döndür, başka hiçbir açıklama ekleme:
 
 {
   "programming_languages": [],
@@ -32,10 +32,15 @@ export class AiService {
   "databases": [],
   "devops": [],
   "cloud": [],
-  "ai_ml": []
+  "ai_ml": [],
+  "experience_level": "",
+  "years_of_experience": 0
 }
 
-Eğer bir kategoride hiçbir şey bulamazsan, o kategoriyi boş dizi olarak bırak. Sadece CV metninde açıkça geçen teknolojileri listele, tahmin yürütme.
+Kurallar:
+- Teknoloji kategorilerinde, eğer hiçbir şey bulamazsan, o kategoriyi boş dizi olarak bırak. Sadece CV metninde açıkça geçen teknolojileri listele, tahmin yürütme.
+- "experience_level" alanına şu değerlerden birini yaz: "Entry", "Junior", "Mid", "Senior". CV'deki toplam iş deneyimi süresine ve unvanlara bakarak en uygun olanı seç. Belirleyemiyorsan "Entry" yaz.
+- "years_of_experience" alanına, CV'de belirtilen toplam profesyonel deneyim yılını bir sayı olarak yaz (örneğin "2 yıl deneyim" yazıyorsa 2). Belirleyemiyorsan 0 yaz.
 
 CV metni:
 """
@@ -58,12 +63,16 @@ ${rawText}
     );
 
     const data = (await response.json()) as OpenRouterResponse;
+    console.log('OpenRouter tam cevabı:', JSON.stringify(data));
     const responseText = data.choices?.[0]?.message?.content ?? '{}';
 
     try {
       const cleaned = responseText.replace(/```json|```/g, '').trim();
+      console.log('AI ham cevabı:', responseText);
       return JSON.parse(cleaned) as Record<string, string[]>;
-    } catch {
+    } catch (error) {
+      console.error('JSON parse hatası, ham cevap:', responseText);
+      console.error('Hata detayı:', error);
       return {};
     }
   }
