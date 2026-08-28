@@ -37,6 +37,10 @@ export class JobsController {
   findOne(@Param('id') id: string) {
     return this.jobsService.findOne(id);
   }
+  @Get(':id/matching-resumes')
+  findMatchingResumes(@Param('id') id: string) {
+    return this.jobsService.findMatchingResumes(id);
+  }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)

@@ -4,6 +4,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 
+export interface ResumeMatch {
+  id: string;
+  fileName: string;
+  distance: number;
+}
+
 @Injectable()
 export class JobsService {
   constructor(
@@ -102,5 +108,28 @@ export class JobsService {
     return this.prisma.job.delete({
       where: { id },
     });
+  }
+
+  async findMatchingResumes(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('İlan bulunamadı');
+    }
+
+    const matches = await this.prisma.$queryRaw<ResumeMatch[]>`
+    SELECT r.id, r."fileName",
+           r.embedding <=> j.embedding AS distance
+    FROM "Resume" r, "Job" j
+    WHERE j.id = ${jobId}
+      AND r.embedding IS NOT NULL
+      AND j.embedding IS NOT NULL
+    ORDER BY distance ASC
+    LIMIT 10
+  `;
+
+    return matches;
   }
 }
