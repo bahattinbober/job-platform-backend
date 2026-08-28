@@ -22,6 +22,7 @@ model User {
   updatedAt    DateTime @updatedAt
   profile      Profile?
   resumes      Resume[]
+  connections  Connection[]
 }
 
 model Profile {
@@ -97,4 +98,25 @@ model Job {
   updatedAt      DateTime @updatedAt
 
   @@unique([source, externalId])
+  
+}
+ 
+
+
+model Connection {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  firstName   String
+  lastName    String
+  companyName String?
+  position    String?
+  profileUrl  String?
+  connectedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, firstName, lastName, companyName])
 }

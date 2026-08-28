@@ -8,9 +8,10 @@ import { ResumesModule } from './resumes/resumes.module';
 import { AiModule } from './ai/ai.module';
 import { JobsModule } from './jobs/jobs.module';
 import { MatchingModule } from './matching/matching.module';
+import { ConnectionsModule } from './connections/connections.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, ResumesModule, AiModule, JobsModule, MatchingModule],
+  imports: [PrismaModule, AuthModule, UsersModule, ResumesModule, AiModule, JobsModule, MatchingModule, ConnectionsModule],
   controllers: [AppController],
   providers: [AppService],
 })
