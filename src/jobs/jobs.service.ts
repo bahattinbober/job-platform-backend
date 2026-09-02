@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { ConnectionsService } from '../connections/connections.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 export interface ResumeMatch {
   id: string;
@@ -21,6 +23,7 @@ export class JobsService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly connectionsService: ConnectionsService,
+    @InjectQueue('jobs-processing') private readonly jobsQueue: Queue,
   ) {}
 
   async create(dto: CreateJobDto) {
@@ -39,25 +42,10 @@ export class JobsService {
       },
     });
 
-    try {
-      const embedding = await this.aiService.generateEmbedding(dto.description);
-
-      if (embedding.length > 0) {
-        const embeddingString = `[${embedding.join(',')}]`;
-        await this.prisma.$executeRaw`
-          UPDATE "Job"
-          SET "embedding" = ${embeddingString}::vector
-          WHERE "id" = ${job.id}
-        `;
-      } else {
-        console.warn(
-          `Job ${job.id} için embedding üretilemedi, boş bırakıldı.`,
-        );
-      }
-    } catch (error) {
-      console.error(`Job ${job.id} embedding hatası:`, error);
-      // Embedding başarısız olsa da job oluşturma işlemi devam eder
-    }
+    await this.jobsQueue.add('process-job-embedding', {
+      jobId: job.id,
+      description: dto.description,
+    });
 
     return this.prisma.job.findUnique({
       where: { id: job.id },
