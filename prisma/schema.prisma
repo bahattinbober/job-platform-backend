@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider     = "prisma-client"
   output       = "../generated/prisma"
@@ -14,15 +12,16 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String        @id @default(uuid())
+  email        String        @unique
   passwordHash String
-  linkedinId   String?  @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  linkedinId   String?       @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   profile      Profile?
   resumes      Resume[]
   connections  Connection[]
+  applications Application[]
 }
 
 model Profile {
@@ -53,7 +52,7 @@ model Resume {
 
   rawText      String?
   parsedSkills Json?
-  embedding Unsupported("vector(1024)")?
+  embedding    Unsupported("vector(1024)")?
 
   isActive     Boolean  @default(true)
 
@@ -72,41 +71,40 @@ model Company {
 }
 
 model Job {
-  id             String   @id @default(uuid())
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id])
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
 
-  title          String
-  description    String
-  location       String?
-  remoteType     String?
+  title           String
+  description     String
+  location        String?
+  remoteType      String?
   experienceLevel String?
-  salaryMin      Int?
-  salaryMax      Int?
-  currency       String?
-  visaSponsorship Boolean @default(false)
+  salaryMin       Int?
+  salaryMax       Int?
+  currency        String?
+  visaSponsorship Boolean  @default(false)
 
-  skills         String[]
-  embedding Unsupported("vector(1024)")?
+  skills          String[]
+  embedding       Unsupported("vector(1024)")?
 
-  source         String
-  sourceUrl      String?
-  externalId     String?
+  source          String
+  sourceUrl       String?
+  externalId      String?
 
-  publishedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  applications    Application[]
 
   @@unique([source, externalId])
-  
 }
- 
-
 
 model Connection {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
 
   firstName   String
   lastName    String
@@ -115,8 +113,33 @@ model Connection {
   profileUrl  String?
   connectedAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([userId, firstName, lastName, companyName])
+}
+
+enum ApplicationStatus {
+  SAVED
+  APPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id        String            @id @default(uuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  jobId     String
+  job       Job               @relation(fields: [jobId], references: [id])
+
+  status    ApplicationStatus @default(SAVED)
+  notes     String?
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([userId, jobId])
 }
