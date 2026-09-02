@@ -39,6 +39,8 @@
     "mammoth": "^1.12.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "passport-linkedin-oauth2": "^2.0.0",
+    "passport-oauth2": "^1.8.0",
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -55,6 +57,8 @@
     "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "@types/passport-linkedin-oauth2": "^1.5.6",
+    "@types/passport-oauth2": "^1.8.0",
     "@types/supertest": "^7.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9.18.0",

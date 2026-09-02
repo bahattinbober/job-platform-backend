@@ -6,6 +6,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -16,6 +17,15 @@ interface AuthenticatedRequest extends ExpressRequest {
   user: {
     userId: string;
     email: string;
+  };
+}
+
+interface AuthenticatedRequestWithLinkedIn extends ExpressRequest {
+  user: {
+    linkedinId: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
   };
 }
 
@@ -37,5 +47,17 @@ export class AuthController {
   @Get('me')
   getProfile(@Request() req: AuthenticatedRequest) {
     return req.user;
+  }
+
+  @Get('linkedin')
+  @UseGuards(AuthGuard('linkedin'))
+  linkedinLogin() {
+    // Bu metod hiç çalışmaz, kullanıcı LinkedIn'e yönlendirilir
+  }
+
+  @Get('linkedin/callback')
+  @UseGuards(AuthGuard('linkedin'))
+  async linkedinCallback(@Request() req: AuthenticatedRequestWithLinkedIn) {
+    return this.authService.loginWithLinkedIn(req.user);
   }
 }
