@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { ConnectionsService } from '../connections/connections.service';
 
 export interface ResumeMatch {
   id: string;
@@ -15,6 +16,7 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly connectionsService: ConnectionsService,
   ) {}
 
   async create(dto: CreateJobDto) {
@@ -131,5 +133,19 @@ export class JobsService {
   `;
 
     return matches;
+  }
+  async findNetworkAtJob(userId: string, jobId: string) {
+    const job = await this.findOne(jobId);
+
+    const connections = await this.connectionsService.findConnectionsAtCompany(
+      userId,
+      job.company.name,
+    );
+
+    return {
+      companyName: job.company.name,
+      connectionCount: connections.length,
+      connections,
+    };
   }
 }

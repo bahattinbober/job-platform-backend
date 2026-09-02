@@ -8,11 +8,20 @@ import {
   Body,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Request as ExpressRequest } from 'express';
+
+interface AuthenticatedRequest extends ExpressRequest {
+  user: {
+    userId: string;
+    email: string;
+  };
+}
 
 @Controller('jobs')
 export class JobsController {
@@ -37,6 +46,16 @@ export class JobsController {
   findOne(@Param('id') id: string) {
     return this.jobsService.findOne(id);
   }
+
+  @Get(':id/network')
+  @UseGuards(JwtAuthGuard)
+  findNetworkAtJob(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.jobsService.findNetworkAtJob(req.user.userId, id);
+  }
+
   @Get(':id/matching-resumes')
   findMatchingResumes(@Param('id') id: string) {
     return this.jobsService.findMatchingResumes(id);

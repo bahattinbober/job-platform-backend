@@ -19,11 +19,11 @@ export class ConnectionsService {
   async importCsv(userId: string, fileBuffer: Buffer) {
     const csvText = fileBuffer.toString('utf-8');
 
-    const records = parse(csvText, {
+    const records: CsvRow[] = parse(csvText, {
       columns: true,
       skip_empty_lines: true,
       relax_column_count: true,
-    }) as CsvRow[];
+    });
 
     let imported = 0;
     let skipped = 0;
@@ -74,6 +74,17 @@ export class ConnectionsService {
     }
 
     return { imported, skipped, total: records.length };
+  }
+  async findConnectionsAtCompany(userId: string, companyName: string) {
+    return this.prisma.connection.findMany({
+      where: {
+        userId,
+        companyName: {
+          contains: companyName,
+          mode: 'insensitive',
+        },
+      },
+    });
   }
 
   findAllForUser(userId: string) {
