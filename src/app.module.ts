@@ -10,9 +10,10 @@ import { JobsModule } from './jobs/jobs.module';
 import { MatchingModule } from './matching/matching.module';
 import { ConnectionsModule } from './connections/connections.module';
 import { ApplicationsModule } from './applications/applications.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, ResumesModule, AiModule, JobsModule, MatchingModule, ConnectionsModule, ApplicationsModule],
+  imports: [PrismaModule, AuthModule, UsersModule, ResumesModule, AiModule, JobsModule, MatchingModule, ConnectionsModule, ApplicationsModule, AnalyticsModule],
   controllers: [AppController],
   providers: [AppService],
 })
