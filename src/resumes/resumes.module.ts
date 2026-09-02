@@ -1,12 +1,20 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { ResumesService } from './resumes.service';
 import { ResumesController } from './resumes.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
+import { ResumesProcessor } from './resumes.processor';
 
 @Module({
-  imports: [PrismaModule, AiModule],
-  providers: [ResumesService],
+  imports: [
+    PrismaModule,
+    AiModule,
+    BullModule.registerQueue({
+      name: 'resumes-processing',
+    }),
+  ],
+  providers: [ResumesService, ResumesProcessor],
   controllers: [ResumesController],
 })
 export class ResumesModule {}

@@ -3,6 +3,8 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import * as fs from 'fs';
@@ -21,6 +23,7 @@ export class ResumesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    @InjectQueue('resumes-processing') private readonly resumesQueue: Queue,
   ) {}
 
   async saveResume(userId: string, file: Express.Multer.File) {
@@ -37,18 +40,10 @@ export class ResumesService {
     });
 
     if (rawText) {
-      const parsedSkills = await this.aiService.extractResumeSkills(rawText);
-      const embedding = await this.aiService.generateEmbedding(rawText);
-      const embeddingString = `[${embedding.join(',')}]`;
-
-      await this.prisma.$executeRaw`
-        UPDATE "Resume"
-        SET "embedding" = ${embeddingString}::vector,
-            "parsedSkills" = ${JSON.stringify(parsedSkills)}::jsonb
-        WHERE "id" = ${resume.id}
-      `;
-
-      return this.prisma.resume.findUnique({ where: { id: resume.id } });
+      await this.resumesQueue.add('process-resume', {
+        resumeId: resume.id,
+        rawText,
+      });
     }
 
     return resume;

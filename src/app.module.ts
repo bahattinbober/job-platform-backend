@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,7 +14,24 @@ import { ApplicationsModule } from './applications/applications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, ResumesModule, AiModule, JobsModule, MatchingModule, ConnectionsModule, ApplicationsModule, AnalyticsModule],
+  imports: [
+    BullModule.forRoot({
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    }),
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    ResumesModule,
+    AiModule,
+    JobsModule,
+    MatchingModule,
+    ConnectionsModule,
+    ApplicationsModule,
+    AnalyticsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
