@@ -100,4 +100,47 @@ ${rawText}
 
     return data.data?.[0]?.embedding ?? [];
   }
+  async generateReferralMessage(params: {
+    connectionFirstName: string;
+    companyName: string;
+    jobTitle: string;
+    userSkills: string[];
+  }): Promise<string> {
+    const { connectionFirstName, companyName, jobTitle, userSkills } = params;
+
+    const prompt = `Bir kullanıcı, LinkedIn bağlantısına göndermek üzere kısa, samimi ve profesyonel bir mesaj yazmanı istiyor.
+
+Bağlam:
+- Bağlantının adı: ${connectionFirstName}
+- Bağlantının çalıştığı şirket: ${companyName}
+- Kullanıcının başvurmak istediği pozisyon: ${jobTitle}
+- Kullanıcının öne çıkan becerileri: ${userSkills.join(', ')}
+
+Kurallar:
+- Mesaj Türkçe olsun.
+- 3-4 cümleyi geçmesin.
+- Doğrudan referral/tavsiye istemek yerine, pozisyon ve ekip hakkında kısa bir sohbet talep eden, samimi bir ton kullan.
+- Aşırı resmi veya kalıplaşmış olmasın, doğal bir dille yazılsın.
+- Sadece mesajın kendisini döndür, başka hiçbir açıklama ekleme.
+
+Mesajı yaz:`;
+
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.chatModel,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      },
+    );
+
+    const data = (await response.json()) as OpenRouterResponse;
+    return data.choices?.[0]?.message?.content?.trim() ?? '';
+  }
 }

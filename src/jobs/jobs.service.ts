@@ -1,5 +1,9 @@
 import { AiService } from '../ai/ai.service';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
@@ -147,5 +151,49 @@ export class JobsService {
       connectionCount: connections.length,
       connections,
     };
+  }
+  async generateReferralMessage(
+    userId: string,
+    jobId: string,
+    connectionId: string,
+  ) {
+    const job = await this.findOne(jobId);
+
+    const connection = await this.prisma.connection.findUnique({
+      where: { id: connectionId },
+    });
+
+    if (!connection) {
+      throw new NotFoundException('Bağlantı bulunamadı');
+    }
+
+    if (connection.userId !== userId) {
+      throw new ForbiddenException('Bu bağlantı size ait değil');
+    }
+
+    const resume = await this.prisma.resume.findFirst({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const skillsObject = resume?.parsedSkills as Record<string, unknown> | null;
+    const userSkills = skillsObject
+      ? ['programming_languages', 'backend', 'frontend']
+          .flatMap((category) =>
+            Array.isArray(skillsObject[category])
+              ? (skillsObject[category] as string[])
+              : [],
+          )
+          .slice(0, 5)
+      : [];
+
+    const message = await this.aiService.generateReferralMessage({
+      connectionFirstName: connection.firstName,
+      companyName: job.company.name,
+      jobTitle: job.title,
+      userSkills,
+    });
+
+    return { message };
   }
 }

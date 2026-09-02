@@ -55,6 +55,19 @@ export class JobsController {
   ) {
     return this.jobsService.findNetworkAtJob(req.user.userId, id);
   }
+  @Get(':id/referral-message/:connectionId')
+  @UseGuards(JwtAuthGuard)
+  generateReferralMessage(
+    @Param('id') id: string,
+    @Param('connectionId') connectionId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.jobsService.generateReferralMessage(
+      req.user.userId,
+      id,
+      connectionId,
+    );
+  }
 
   @Get(':id/matching-resumes')
   findMatchingResumes(@Param('id') id: string) {
