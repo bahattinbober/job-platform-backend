@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 interface OpenRouterResponse {
   choices?: {
@@ -16,6 +16,7 @@ interface OpenRouterEmbeddingResponse {
 
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
   private readonly apiKey = process.env.OPENROUTER_API_KEY;
   private readonly chatModel = 'liquid/lfm-2.5-2.6b:free';
   private readonly embeddingModel = 'liquid/lfm-2.5-embedding-350m:free';
@@ -63,16 +64,16 @@ ${rawText}
     );
 
     const data = (await response.json()) as OpenRouterResponse;
-    console.log('OpenRouter tam cevabı:', JSON.stringify(data));
     const responseText = data.choices?.[0]?.message?.content ?? '{}';
 
     try {
       const cleaned = responseText.replace(/```json|```/g, '').trim();
-      console.log('AI ham cevabı:', responseText);
-      return JSON.parse(cleaned) as Record<string, string[]>;
+      const parsed = JSON.parse(cleaned) as Record<string, string[]>;
+      this.logger.log('Resume skills extraction completed');
+      return parsed;
     } catch (error) {
-      console.error('JSON parse hatası, ham cevap:', responseText);
-      console.error('Hata detayı:', error);
+      this.logger.error(`JSON parse hatası, ham cevap: ${responseText}`);
+      this.logger.error('Hata detayı:', error);
       return {};
     }
   }
@@ -95,10 +96,15 @@ ${rawText}
     };
 
     if (!response.ok || data.error) {
-      console.error('OpenRouter embedding error:', response.status, data);
+      this.logger.error(
+        `OpenRouter embedding error: status=${response.status} ${JSON.stringify(data)}`,
+      );
+      return [];
     }
 
-    return data.data?.[0]?.embedding ?? [];
+    const embedding = data.data?.[0]?.embedding ?? [];
+    this.logger.log(`Embedding request completed, ${embedding.length} dimensions`);
+    return embedding;
   }
   async generateReferralMessage(params: {
     connectionFirstName: string;

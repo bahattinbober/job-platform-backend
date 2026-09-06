@@ -1,13 +1,20 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+
+const logger = new Logger('PrismaService');
 
 const connectionString = process.env.DATABASE_URL ?? '';
 const dbUrl = new URL(connectionString);
 const isRds = dbUrl.hostname.endsWith('rds.amazonaws.com');
 
-console.log(
-  `[PrismaService] connecting to host="${dbUrl.hostname}" port="${dbUrl.port}" db="${dbUrl.pathname.slice(1)}"`,
+logger.log(
+  `Connecting to host="${dbUrl.hostname}" port="${dbUrl.port}" db="${dbUrl.pathname.slice(1)}"`,
 );
 
 const adapter = new PrismaPg({
