@@ -1,6 +1,7 @@
 import { AiService } from '../ai/ai.service';
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -19,6 +20,8 @@ export interface ResumeMatch {
 
 @Injectable()
 export class JobsService {
+  private readonly logger = new Logger(JobsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
@@ -42,10 +45,13 @@ export class JobsService {
       },
     });
 
-    await this.jobsQueue.add('process-job-embedding', {
+    const bullJob = await this.jobsQueue.add('process-job-embedding', {
       jobId: job.id,
       description: dto.description,
     });
+    this.logger.log(
+      `Job ${job.id} queued for embedding processing (bull job ${bullJob.id})`,
+    );
 
     return this.prisma.job.findUnique({
       where: { id: job.id },

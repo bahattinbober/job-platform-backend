@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -20,6 +21,8 @@ export interface JobMatch {
 
 @Injectable()
 export class ResumesService {
+  private readonly logger = new Logger(ResumesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
@@ -40,10 +43,13 @@ export class ResumesService {
     });
 
     if (rawText) {
-      await this.resumesQueue.add('process-resume', {
+      const bullJob = await this.resumesQueue.add('process-resume', {
         resumeId: resume.id,
         rawText,
       });
+      this.logger.log(
+        `Resume ${resume.id} queued for processing (bull job ${bullJob.id})`,
+      );
     }
 
     return resume;
