@@ -5,6 +5,11 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  @Get('health')
+  health() {
+    return { status: 'ok' };
+  }
+
   @Post('test-user')
   createTestUser(@Body('email') email: string) {
     return this.appService.createTestUser(email);
