@@ -1,98 +1,147 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Job Platform Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Upload your CV, get matched to relevant job postings, and see which of your LinkedIn connections already work at those companies — then generate a referral request message for them.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Built with NestJS, PostgreSQL + pgvector, Redis/BullMQ, and deployed on AWS ECS Fargate.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## The problem
 
-## Project setup
+Most job applications go into an applicant tracking system and are never seen by a human. A referral from someone inside the company changes that — the application gets looked at.
 
-```bash
-$ npm install
+The information needed to find those referrals already exists: your CV, the job posting, and your LinkedIn connections. It's just scattered across three places that don't talk to each other. This project connects them.
+
+## How it works
+
+1. **Upload a CV** (PDF or DOCX). The text is parsed and an LLM extracts structured skills. A 1024-dimension embedding is generated in the background.
+2. **Job postings are indexed** the same way — each posting gets its own embedding when created.
+3. **Matching** combines semantic similarity (pgvector cosine distance) with rule-based scoring on skills and experience level. It works in both directions: find jobs for a CV, or find CVs for a job.
+4. **Network lookup** takes the company behind a matched posting and cross-references it against your imported LinkedIn connections. If someone you know works there, you get their name, position, and a generated referral message tailored to the role and your skills.
+
+## Architecture
+
+```mermaid
+graph TB
+    Client[Client] --> ALB[Application Load Balancer]
+    ALB --> ECS[ECS Fargate Task<br/>NestJS API]
+
+    ECS --> RDS[(RDS PostgreSQL 16<br/>+ pgvector)]
+    ECS --> Redis[(ElastiCache Redis<br/>BullMQ queues)]
+    ECS --> SM[Secrets Manager]
+    ECS --> OR[OpenRouter API<br/>chat + embeddings]
+
+    Redis --> W1[resumes-processing<br/>worker]
+    Redis --> W2[jobs-processing<br/>worker]
+    W1 --> RDS
+    W2 --> RDS
 ```
 
-## Compile and run the project
+Embedding generation is expensive and slow, so it never blocks a request. `POST /jobs` returns immediately and pushes a job onto a BullMQ queue; a worker picks it up, calls the embedding API, and writes the vector back to the `vector(1024)` column.
 
-```bash
-# development
-$ npm run start
+## Technology choices
 
-# watch mode
-$ npm run start:dev
+**pgvector over a dedicated vector database.** The embeddings live in the same rows as the job and resume data. A single SQL query can filter by location, salary, and visa sponsorship *and* order by vector distance. Splitting this across Postgres and a separate vector store would mean two round trips and reconciliation logic for a dataset this size.
 
-# production mode
-$ npm run start:prod
+**BullMQ over synchronous processing.** Parsing a PDF and generating an embedding takes several seconds. Doing that inside an HTTP request would make the API unusable. The queue also gives retries and visibility into failed jobs for free.
+
+**Prisma v7 with the driver adapter pattern.** The new `prisma-client` generator uses a query compiler instead of the Rust engine binary, which keeps the Docker image small. pgvector columns are declared as `Unsupported("vector(1024)")` and queried through raw SQL, since Prisma has no native vector type.
+
+**OpenRouter over a direct provider integration.** One API surface for both chat and embeddings, and model selection is a config change rather than a code change. Currently running on free-tier models.
+
+**LinkedIn CSV import over the LinkedIn API.** LinkedIn's API does not expose a user's connection list. The data export CSV does, and users can download it themselves — no partnership agreement required.
+
+## API
+
+Authentication is JWT. LinkedIn OAuth is available as an alternative sign-in (implemented on `passport-oauth2` directly, since `passport-linkedin-oauth2` still targets the deprecated v2/me endpoint).
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/auth/register` | Create account |
+| POST | `/auth/login` | Get JWT |
+| GET | `/auth/linkedin` | LinkedIn OAuth flow |
+| PATCH | `/users/me/profile` | Target roles, locations, salary, tech preferences |
+| POST | `/resumes/upload` | Upload PDF/DOCX, triggers parsing + embedding |
+| GET | `/resumes/:id/matching-jobs` | Ranked job matches for a CV |
+| POST | `/jobs` | Create posting, triggers embedding |
+| GET | `/jobs/:id/matching-resumes` | Ranked CV matches for a posting |
+| GET | `/jobs/:id/network` | Your connections at this company |
+| GET | `/jobs/:id/referral-message/:connectionId` | Generated referral request |
+| POST | `/connections/import` | LinkedIn connections CSV |
+| POST | `/applications` | Track an application |
+| GET | `/analytics/summary` | Application funnel stats |
+
+### Example: finding your network at a company
+
+```http
+GET /jobs/8f3a2b1c-.../network
+Authorization: Bearer <token>
 ```
 
-## Run tests
+```json
+{
+  "companyName": "Acme Corp",
+  "connectionCount": 2,
+  "connections": [
+    {
+      "id": "a1b2c3d4-...",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "position": "Senior Backend Engineer",
+      "profileUrl": "https://linkedin.com/in/janedoe",
+      "connectedAt": "2024-03-15T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+Then, for a message tailored to that person and the role:
+
+```http
+GET /jobs/8f3a2b1c-.../referral-message/a1b2c3d4-...
+```
+
+The generator pulls the top skills from your active CV and combines them with the job title and company name.
+
+## Running locally
 
 ```bash
-# unit tests
-$ npm run test
+git clone https://github.com/bahattinbober/job-platform-backend.git
+cd job-platform-backend
+npm install
 
-# e2e tests
-$ npm run test:e2e
+cp .env.example .env   # fill in OPENROUTER_API_KEY and JWT_SECRET
 
-# test coverage
-$ npm run test:cov
+docker compose up -d   # Postgres 16 + pgvector, Redis
+npx prisma migrate deploy
+npm run start:dev
 ```
+
+The API listens on port 3000. `GET /health` returns `{"status":"ok"}`.
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+The production stack runs entirely on AWS:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- **ECS Fargate** — containerized NestJS app, no servers to manage
+- **RDS PostgreSQL 16** — pgvector extension enabled, private subnet only
+- **ElastiCache Redis** — BullMQ backend, reachable only from the ECS security group
+- **Application Load Balancer** — stable public endpoint, health checks on `/health`
+- **Secrets Manager** — database URL, JWT secret, and API keys injected at container start by the ECS execution role; never stored in the task definition
+- **ECR** — image registry
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+Network access is tightly scoped: the load balancer is the only thing exposed to the internet, the application accepts traffic only from the load balancer's security group, and the database and cache accept traffic only from the application's. Rules reference security groups rather than IP addresses, so they survive task restarts.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+> **Note:** the AWS infrastructure is currently torn down to avoid running costs on a portfolio project. Database snapshots and a full configuration record (`infrastructure-snapshot.md`) are retained. Rebuilding it as Terraform is the next step.
 
-## Resources
+## Notes on a few problems worth documenting
 
-Check out a few resources that may come in handy when working with NestJS:
+**`sslmode` in the connection string silently overrides the `ssl` config object.** Prisma's `PrismaPg` adapter passes the connection string to `node-postgres`, which currently treats `sslmode=require` as `verify-full`. RDS certificates are signed by Amazon's own CA, which isn't in Node's trust store, so the connection fails with `self-signed certificate in certificate chain`. The fix was to parse the URL manually and pass host, port, user, password, and database as separate fields — a single source of truth for the SSL configuration.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+**`docker run --env-file` does not strip quotes.** `dotenv` does. A `.env` file that works locally can produce a malformed connection string inside a container.
 
-## Support
+**The `awslogs` driver drops buffered log lines when a container is terminated.** During a rolling deployment this means the last few log lines never reach CloudWatch. An absent log entry is not evidence that work didn't happen — the queue state in Redis and the row in the database are.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Stack
 
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+TypeScript · NestJS 11 · Prisma 7 · PostgreSQL 16 · pgvector · Redis · BullMQ · Docker · AWS (ECS, RDS, ElastiCache, ALB, ECR, Secrets Manager)
