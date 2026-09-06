@@ -40,6 +40,7 @@ export class PrismaService
   }
 
   async onModuleDestroy() {
+    logger.log('Disconnecting from database');
     await this.$disconnect();
   }
 }
