@@ -15,12 +15,16 @@ import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
-    BullModule.forRoot({
+     BullModule.forRoot({
       connection: {
-        host: 'localhost',
-        port: 6379,
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: Number(process.env.REDIS_PORT ?? 6379),
       },
     }),
+    BullModule.registerQueue(
+      { name: 'jobs-processing' },
+      { name: 'resumes-processing' },
+    ),
     PrismaModule,
     AuthModule,
     UsersModule,
