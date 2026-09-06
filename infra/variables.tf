@@ -45,3 +45,27 @@ variable "redis_node_type" {
   type        = string
   default     = "cache.t3.micro"
 }
+
+variable "task_cpu" {
+  description = "Fargate CPU units (256 = 0.25 vCPU)"
+  type        = string
+  default     = "512"
+}
+
+variable "task_memory" {
+  description = "Fargate memory in MiB"
+  type        = string
+  default     = "1024"
+}
+
+variable "container_image" {
+  description = "Full ECR image URI including tag"
+  type        = string
+  default     = "323463754688.dkr.ecr.eu-north-1.amazonaws.com/job-platform-backend:v6"
+}
+
+variable "desired_count" {
+  description = "Number of running tasks. Set to 0 to stop paying for compute."
+  type        = number
+  default     = 1
+}

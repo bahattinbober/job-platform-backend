@@ -13,3 +13,13 @@ output "database_url" {
   value       = "postgresql://${aws_db_instance.main.username}:${random_password.db.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${aws_db_instance.main.db_name}"
   sensitive   = true
 }
+
+output "alb_dns_name" {
+  description = "Public endpoint for the API"
+  value       = aws_lb.main.dns_name
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name for CLI commands"
+  value       = aws_ecs_cluster.main.name
+}
