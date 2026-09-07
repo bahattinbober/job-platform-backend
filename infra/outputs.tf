@@ -28,3 +28,13 @@ output "github_deploy_role_arn" {
   description = "IAM role ARN for the GitHub Actions deploy workflow"
   value       = aws_iam_role.github_deploy.arn
 }
+
+output "nameservers" {
+  description = "Set these at the domain registrar"
+  value       = aws_route53_zone.main.name_servers
+}
+
+output "api_url" {
+  description = "Public HTTPS endpoint"
+  value       = "https://${var.api_subdomain}.${var.domain_name}"
+}

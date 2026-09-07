@@ -42,8 +42,7 @@ resource "aws_ecs_task_definition" "app" {
         { name = "PORT", value = tostring(var.app_port) },
         { name = "REDIS_HOST", value = aws_elasticache_cluster.main.cache_nodes[0].address },
         { name = "REDIS_PORT", value = "6379" },
-        { name = "LINKEDIN_CALLBACK_URL", value = "http://${aws_lb.main.dns_name}/auth/linkedin/callback" },
-      ]
+        { name = "LINKEDIN_CALLBACK_URL", value = "https://${var.api_subdomain}.${var.domain_name}/auth/linkedin/callback" },]
 
       secrets = [
         { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
