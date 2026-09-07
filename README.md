@@ -41,7 +41,7 @@ Embedding generation is expensive and slow, so it never blocks a request. `POST 
 
 ## Technology choices
 
-**pgvector over a dedicated vector database.** The embeddings live in the same rows as the job and resume data. A single SQL query can filter by location, salary, and visa sponsorship *and* order by vector distance. Splitting this across Postgres and a separate vector store would mean two round trips and reconciliation logic for a dataset this size.
+**pgvector over a dedicated vector database.** The embeddings live in the same rows as the job and resume data. A single SQL query can filter by location, salary, and visa sponsorship _and_ order by vector distance. Splitting this across Postgres and a separate vector store would mean two round trips and reconciliation logic for a dataset this size.
 
 **BullMQ over synchronous processing.** Parsing a PDF and generating an embedding takes several seconds. Doing that inside an HTTP request would make the API unusable. The queue also gives retries and visibility into failed jobs for free.
 
@@ -55,21 +55,21 @@ Embedding generation is expensive and slow, so it never blocks a request. `POST 
 
 Authentication is JWT. LinkedIn OAuth is available as an alternative sign-in (implemented on `passport-oauth2` directly, since `passport-linkedin-oauth2` still targets the deprecated v2/me endpoint).
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/register` | Create account |
-| POST | `/auth/login` | Get JWT |
-| GET | `/auth/linkedin` | LinkedIn OAuth flow |
-| PATCH | `/users/me/profile` | Target roles, locations, salary, tech preferences |
-| POST | `/resumes/upload` | Upload PDF/DOCX, triggers parsing + embedding |
-| GET | `/resumes/:id/matching-jobs` | Ranked job matches for a CV |
-| POST | `/jobs` | Create posting, triggers embedding |
-| GET | `/jobs/:id/matching-resumes` | Ranked CV matches for a posting |
-| GET | `/jobs/:id/network` | Your connections at this company |
-| GET | `/jobs/:id/referral-message/:connectionId` | Generated referral request |
-| POST | `/connections/import` | LinkedIn connections CSV |
-| POST | `/applications` | Track an application |
-| GET | `/analytics/summary` | Application funnel stats |
+| Method | Endpoint                                   | Description                                       |
+| ------ | ------------------------------------------ | ------------------------------------------------- |
+| POST   | `/auth/register`                           | Create account                                    |
+| POST   | `/auth/login`                              | Get JWT                                           |
+| GET    | `/auth/linkedin`                           | LinkedIn OAuth flow                               |
+| PATCH  | `/users/me/profile`                        | Target roles, locations, salary, tech preferences |
+| POST   | `/resumes/upload`                          | Upload PDF/DOCX, triggers parsing + embedding     |
+| GET    | `/resumes/:id/matching-jobs`               | Ranked job matches for a CV                       |
+| POST   | `/jobs`                                    | Create posting, triggers embedding                |
+| GET    | `/jobs/:id/matching-resumes`               | Ranked CV matches for a posting                   |
+| GET    | `/jobs/:id/network`                        | Your connections at this company                  |
+| GET    | `/jobs/:id/referral-message/:connectionId` | Generated referral request                        |
+| POST   | `/connections/import`                      | LinkedIn connections CSV                          |
+| POST   | `/applications`                            | Track an application                              |
+| GET    | `/analytics/summary`                       | Application funnel stats                          |
 
 ### Example: finding your network at a company
 
@@ -132,7 +132,25 @@ The production stack runs entirely on AWS:
 
 Network access is tightly scoped: the load balancer is the only thing exposed to the internet, the application accepts traffic only from the load balancer's security group, and the database and cache accept traffic only from the application's. Rules reference security groups rather than IP addresses, so they survive task restarts.
 
-> **Note:** the AWS infrastructure is currently torn down to avoid running costs on a portfolio project. Database snapshots and a full configuration record (`infrastructure-snapshot.md`) are retained. Rebuilding it as Terraform is the next step.
+> **Note:** the infrastructure is not left running — this is a portfolio project, and an idle stack costs about $65/month. It is defined as Terraform and brought up on demand (see below). Database snapshots are retained between runs.
+
+## Infrastructure as code
+
+Everything above is defined in Terraform under `infra/` — 27 resources covering security groups, RDS, ElastiCache, IAM roles, Secrets Manager, ECS, and the load balancer.
+
+```bash
+cd infra
+terraform init
+terraform apply -var="db_snapshot_identifier=<snapshot-id>"
+```
+
+About 15 minutes later the API is live at the load balancer's DNS name, which Terraform prints as an output. `terraform destroy` tears it all down again.
+
+Two details worth calling out:
+
+**Nothing is copied by hand.** The database password is generated by `random_password`, consumed by the RDS instance, and written into Secrets Manager as part of a connection string assembled from the instance's own endpoint and port. The Redis host in the task definition comes from the ElastiCache resource. The LinkedIn callback URL is built from the load balancer's DNS name. Earlier, when this was set up by hand, keeping those values in sync across `.env` and the AWS console was the single largest source of mistakes.
+
+**Derived secrets are managed, external ones are not.** `DATABASE_URL` and `JWT_SECRET` are created by Terraform, because it can generate them. The OpenRouter and LinkedIn credentials come from outside AWS, so they're created by hand and read with a `data` block — Terraform learns their ARNs to wire into the task definition, but never sees or stores their values.
 
 ## Notes on a few problems worth documenting
 
