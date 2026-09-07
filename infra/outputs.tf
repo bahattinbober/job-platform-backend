@@ -23,3 +23,8 @@ output "ecs_cluster_name" {
   description = "ECS cluster name for CLI commands"
   value       = aws_ecs_cluster.main.name
 }
+
+output "github_deploy_role_arn" {
+  description = "IAM role ARN for the GitHub Actions deploy workflow"
+  value       = aws_iam_role.github_deploy.arn
+}
