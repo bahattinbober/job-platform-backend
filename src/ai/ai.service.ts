@@ -24,7 +24,7 @@ export class AiService {
   async extractResumeSkills(
     rawText: string,
   ): Promise<Record<string, string[]>> {
-    const prompt = `Aşağıda bir CV'nin ham metni var. Bu metni analiz et ve içindeki teknik yetenekleri ve deneyim bilgisini şu şekilde SADECE JSON formatında döndür, başka hiçbir açıklama ekleme:
+    const prompt = `Below is the raw text of a resume. Analyze it and return the technical skills and experience information it contains STRICTLY as JSON, with no other explanation:
 
 {
   "programming_languages": [],
@@ -38,12 +38,12 @@ export class AiService {
   "years_of_experience": 0
 }
 
-Kurallar:
-- Teknoloji kategorilerinde, eğer hiçbir şey bulamazsan, o kategoriyi boş dizi olarak bırak. Sadece CV metninde açıkça geçen teknolojileri listele, tahmin yürütme.
-- "experience_level" alanına şu değerlerden birini yaz: "Entry", "Junior", "Mid", "Senior". CV'deki toplam iş deneyimi süresine ve unvanlara bakarak en uygun olanı seç. Belirleyemiyorsan "Entry" yaz.
-- "years_of_experience" alanına, CV'de belirtilen toplam profesyonel deneyim yılını bir sayı olarak yaz (örneğin "2 yıl deneyim" yazıyorsa 2). Belirleyemiyorsan 0 yaz.
+Rules:
+- If you can't find anything for a technology category, leave that category as an empty array. Only list technologies that are explicitly mentioned in the resume text, don't guess.
+- For "experience_level", write one of: "Entry", "Junior", "Mid", "Senior". Choose the best fit based on the total work experience and job titles in the resume. If you can't determine it, write "Entry".
+- For "years_of_experience", write the total years of professional experience stated in the resume as a number (e.g. if it says "2 years of experience", write 2). If you can't determine it, write 0.
 
-CV metni:
+Resume text:
 """
 ${rawText}
 """`;
@@ -106,30 +106,67 @@ ${rawText}
     this.logger.log(`Embedding request completed, ${embedding.length} dimensions`);
     return embedding;
   }
+  private formatConnectionDuration(connectedAt: Date | null): string {
+    if (!connectedAt) {
+      return 'an unspecified amount of time';
+    }
+
+    const diffDays =
+      (Date.now() - connectedAt.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 30) {
+      return 'a few weeks';
+    }
+
+    if (diffDays < 365) {
+      const months = Math.round(diffDays / 30);
+      return `about ${months} month${months === 1 ? '' : 's'}`;
+    }
+
+    const years = Math.floor(diffDays / 365);
+    return `about ${years} year${years === 1 ? '' : 's'}`;
+  }
+
   async generateReferralMessage(params: {
     connectionFirstName: string;
+    connectionPosition: string | null;
     companyName: string;
     jobTitle: string;
-    userSkills: string[];
+    overlappingSkills: string[];
+    connectedAt: Date | null;
   }): Promise<string> {
-    const { connectionFirstName, companyName, jobTitle, userSkills } = params;
+    const {
+      connectionFirstName,
+      connectionPosition,
+      companyName,
+      jobTitle,
+      overlappingSkills,
+      connectedAt,
+    } = params;
 
-    const prompt = `Bir kullanıcı, LinkedIn bağlantısına göndermek üzere kısa, samimi ve profesyonel bir mesaj yazmanı istiyor.
+    const connectionDuration = this.formatConnectionDuration(connectedAt);
 
-Bağlam:
-- Bağlantının adı: ${connectionFirstName}
-- Bağlantının çalıştığı şirket: ${companyName}
-- Kullanıcının başvurmak istediği pozisyon: ${jobTitle}
-- Kullanıcının öne çıkan becerileri: ${userSkills.join(', ')}
+    const prompt = `You're writing a short, warm message for a user to send to one of their LinkedIn connections, asking that connection to refer them for a job.
 
-Kurallar:
-- Mesaj Türkçe olsun.
-- 3-4 cümleyi geçmesin.
-- Doğrudan referral/tavsiye istemek yerine, pozisyon ve ekip hakkında kısa bir sohbet talep eden, samimi bir ton kullan.
-- Aşırı resmi veya kalıplaşmış olmasın, doğal bir dille yazılsın.
-- Sadece mesajın kendisini döndür, başka hiçbir açıklama ekleme.
+Context:
+- Connection's first name: ${connectionFirstName}
+- Connection's position at the company: ${connectionPosition ?? 'not known - just refer to them as working there'}
+- Company: ${companyName}
+- Job the user wants to apply for: ${jobTitle}
+- The user's skills that overlap with what the job requires: ${overlappingSkills.length > 0 ? overlappingSkills.join(', ') : 'a relevant technical background for the role'}
+- How long the user and this connection have been connected: ${connectionDuration}
 
-Mesajı yaz:`;
+Rules:
+- Write the message in English.
+- 4-6 sentences.
+- The message must actually ask for something: ask the connection to refer the user for the role, or to point them to whoever is hiring - don't just ask to "catch up" or "chat" about the team.
+- Reference the specific overlap between the user's background and the role.
+- Name the job title and the company.
+- End with a clear, direct ask.
+- Keep the tone direct and warm - not formal, not templated, like a real person actually wrote it.
+- Return only the message itself, no other explanation.
+
+Write the message:`;
 
     const response = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',

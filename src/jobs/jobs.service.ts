@@ -178,14 +178,22 @@ export class JobsService {
               ? (skillsObject[category] as string[])
               : [],
           )
-          .slice(0, 5)
       : [];
+
+    const userSkillsLower = new Set(
+      userSkills.map((skill) => skill.toLowerCase()),
+    );
+    const overlappingSkills = job.skills.filter((skill) =>
+      userSkillsLower.has(skill.toLowerCase()),
+    );
 
     const message = await this.aiService.generateReferralMessage({
       connectionFirstName: connection.firstName,
+      connectionPosition: connection.position,
       companyName: job.company.name,
       jobTitle: job.title,
-      userSkills,
+      overlappingSkills,
+      connectedAt: connection.connectedAt,
     });
 
     return { message };
