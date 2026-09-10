@@ -14,6 +14,13 @@ async function bootstrap() {
     }),
   );
   app.enableShutdownHooks();
+
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    credentials: true,
+    allowedHeaders: ['Authorization', 'Content-Type'],
+  });
+
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
