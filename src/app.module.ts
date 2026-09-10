@@ -12,14 +12,12 @@ import { MatchingModule } from './matching/matching.module';
 import { ConnectionsModule } from './connections/connections.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { buildRedisConnection } from './config/redis.config';
 
 @Module({
   imports: [
      BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: Number(process.env.REDIS_PORT ?? 6379),
-      },
+      connection: buildRedisConnection(),
     }),
     BullModule.registerQueue(
       { name: 'jobs-processing' },
