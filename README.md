@@ -2,7 +2,15 @@
 
 Upload your CV, get matched to relevant job postings, and see which of your LinkedIn connections already work at those companies — then generate a referral request message for them.
 
-Built with NestJS, PostgreSQL + pgvector, Redis/BullMQ, and deployed on AWS ECS Fargate.
+Built with NestJS, PostgreSQL + pgvector, Redis/BullMQ. Deployed on Railway (see [Deployment](#deployment) below).
+
+## Live demo
+
+- App: https://bahattinbober.com
+- API health: https://api.bahattinbober.com/health
+- Test account: `test@gmail.com` / `123456789`
+- The account has a sample CV, 23 job postings, and 19 LinkedIn connections loaded.
+- Frontend repo: https://github.com/bahattinbober/job-platform-frontend
 
 ---
 
@@ -20,6 +28,20 @@ The information needed to find those referrals already exists: your CV, the job 
 4. **Network lookup** takes the company behind a matched posting and cross-references it against your imported LinkedIn connections. If someone you know works there, you get their name, position, and a generated referral message tailored to the role and your skills.
 
 ## Architecture
+
+**Current deployment (Railway):**
+
+```mermaid
+graph TB
+    Client[Client] --> Vercel[Vercel<br/>Frontend]
+    Vercel --> Backend[Railway<br/>NestJS API]
+
+    Backend --> PG[(Railway Postgres<br/>pgvector template)]
+    Backend --> Redis[(Railway Redis<br/>BullMQ queues)]
+    Backend --> OR[OpenRouter API<br/>chat + embeddings]
+```
+
+**AWS (infrastructure as code, currently off):**
 
 ```mermaid
 graph TB
@@ -56,7 +78,7 @@ Embedding generation is expensive and slow, so it never blocks a request. `POST 
 Authentication is JWT. LinkedIn OAuth is available as an alternative sign-in (implemented on `passport-oauth2` directly, since `passport-linkedin-oauth2` still targets the deprecated v2/me endpoint).
 
 | Method | Endpoint                                   | Description                                       |
-| ------ | ------------------------------------------ | ------------------------------------------------- |
+| ------ | ------------------------------------------ | -------------------------------------------------- |
 | POST   | `/auth/register`                           | Create account                                    |
 | POST   | `/auth/login`                              | Get JWT                                           |
 | GET    | `/auth/linkedin`                           | LinkedIn OAuth flow                               |
@@ -119,9 +141,38 @@ npm run start:dev
 
 The API listens on port 3000. `GET /health` returns `{"status":"ok"}`.
 
+## Environment variables
+
+The full list lives in `.env.example`. A couple are worth calling out:
+
+| Variable      | Notes                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`   | Optional. When set, takes priority over `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD`. A `rediss://` scheme enables TLS automatically. |
+| `CORS_ORIGIN` | Supports a comma-separated list of origins (e.g. `https://a.com,https://b.com`).                            |
+
+## Seeding demo data
+
+- `npm run seed:jobs` — logs in using `SEED_EMAIL` / `SEED_PASSWORD` against `SEED_API_URL`, then creates 23 realistic job postings through `POST /jobs`.
+- `scripts/seed-connections.csv` — a LinkedIn-export-formatted CSV with 19 connections. Upload it as multipart form data to `POST /connections/import`.
+
 ## Deployment
 
-The production stack runs entirely on AWS:
+### Current deployment (Railway)
+
+The live demo runs on Railway:
+
+- **Backend** — the NestJS API, built and run from the repo's `Dockerfile`
+- **PostgreSQL** — Railway's pgvector template
+- **Redis** — a separate Railway service, used as the BullMQ backend
+- **Frontend** — deployed separately on Vercel ([job-platform-frontend](https://github.com/bahattinbober/job-platform-frontend))
+
+The backend reaches Postgres and Redis over Railway's private network (e.g. `redis.railway.internal`) rather than public endpoints.
+
+### AWS (infrastructure as code)
+
+> Written and validated as Terraform, but currently off — an idle stack costs about $65/month and this is a portfolio project. The live demo above runs on Railway instead.
+
+The production stack, when running, is entirely on AWS:
 
 - **ECS Fargate** — containerized NestJS app, no servers to manage
 - **RDS PostgreSQL 16** — pgvector extension enabled, private subnet only
@@ -132,10 +183,6 @@ The production stack runs entirely on AWS:
 
 Network access is tightly scoped: the load balancer is the only thing exposed to the internet, the application accepts traffic only from the load balancer's security group, and the database and cache accept traffic only from the application's. Rules reference security groups rather than IP addresses, so they survive task restarts.
 
-> **Note:** the infrastructure is not left running — this is a portfolio project, and an idle stack costs about $65/month. It is defined as Terraform and brought up on demand (see below). Database snapshots are retained between runs.
-
-## Infrastructure as code
-
 Everything above is defined in Terraform under `infra/` — 27 resources covering security groups, RDS, ElastiCache, IAM roles, Secrets Manager, ECS, and the load balancer.
 
 ```bash
@@ -144,13 +191,20 @@ terraform init
 terraform apply -var="db_snapshot_identifier=<snapshot-id>"
 ```
 
-About 15 minutes later the API is live at the load balancer's DNS name, which Terraform prints as an output. `terraform destroy` tears it all down again.
+About 15 minutes later the API is live at the load balancer's DNS name, which Terraform prints as an output. `terraform destroy` tears it all down again. Database snapshots are retained between runs.
 
 Two details worth calling out:
 
 **Nothing is copied by hand.** The database password is generated by `random_password`, consumed by the RDS instance, and written into Secrets Manager as part of a connection string assembled from the instance's own endpoint and port. The Redis host in the task definition comes from the ElastiCache resource. The LinkedIn callback URL is built from the load balancer's DNS name. Earlier, when this was set up by hand, keeping those values in sync across `.env` and the AWS console was the single largest source of mistakes.
 
 **Derived secrets are managed, external ones are not.** `DATABASE_URL` and `JWT_SECRET` are created by Terraform, because it can generate them. The OpenRouter and LinkedIn credentials come from outside AWS, so they're created by hand and read with a `data` block — Terraform learns their ARNs to wire into the task definition, but never sees or stores their values.
+
+## Known trade-offs
+
+- The JWT is stored in `localStorage` on the frontend, not an httpOnly cookie.
+- Embedding generation and referral message generation run on OpenRouter's free-tier models; message quality is decent but not great.
+- The landing page's product screenshots are rendered from mock data, not the live API.
+- The AWS infrastructure above is currently off due to cost — the live demo runs on Railway.
 
 ## Notes on a few problems worth documenting
 
@@ -162,4 +216,4 @@ Two details worth calling out:
 
 ## Stack
 
-TypeScript · NestJS 11 · Prisma 7 · PostgreSQL 16 · pgvector · Redis · BullMQ · Docker · AWS (ECS, RDS, ElastiCache, ALB, ECR, Secrets Manager)
+TypeScript · NestJS 11 · Prisma 7 · PostgreSQL 16 · pgvector · Redis · BullMQ · Docker · Railway · Vercel · AWS (ECS, RDS, ElastiCache, ALB, ECR, Secrets Manager)
