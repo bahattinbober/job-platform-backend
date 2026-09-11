@@ -112,6 +112,14 @@ Authorization: Bearer <token>
       "position": "Senior Backend Engineer",
       "profileUrl": "https://linkedin.com/in/janedoe",
       "connectedAt": "2024-03-15T00:00:00.000Z"
+    },
+    {
+      "id": "b2c3d4e5-...",
+      "firstName": "Marco",
+      "lastName": "Rossi",
+      "position": "Engineering Manager",
+      "profileUrl": "https://linkedin.com/in/marcorossi",
+      "connectedAt": "2023-08-02T00:00:00.000Z"
     }
   ]
 }
@@ -139,7 +147,7 @@ npx prisma migrate deploy
 npm run start:dev
 ```
 
-The API listens on port 3000. `GET /health` returns `{"status":"ok"}`.
+The code defaults to port 3000, but `.env.example` sets `PORT=3001` since the frontend expects the API there. `GET /health` returns `{"status":"ok"}`.
 
 ## Environment variables
 
@@ -183,7 +191,7 @@ The production stack, when running, is entirely on AWS:
 
 Network access is tightly scoped: the load balancer is the only thing exposed to the internet, the application accepts traffic only from the load balancer's security group, and the database and cache accept traffic only from the application's. Rules reference security groups rather than IP addresses, so they survive task restarts.
 
-Everything above is defined in Terraform under `infra/` — 27 resources covering security groups, RDS, ElastiCache, IAM roles, Secrets Manager, ECS, and the load balancer.
+Everything above is defined in Terraform under `infra/` — 36 resources covering security groups, RDS, ElastiCache, IAM roles, Secrets Manager, ECS, and the load balancer.
 
 ```bash
 cd infra
