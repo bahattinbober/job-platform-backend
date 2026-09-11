@@ -80,10 +80,11 @@ export class ConnectionsService {
       where: {
         userId,
         companyName: {
-          contains: companyName,
+          equals: companyName.trim(),
           mode: 'insensitive',
         },
       },
+      orderBy: { connectedAt: 'desc' },
     });
   }
 
