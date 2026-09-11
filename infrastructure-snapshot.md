@@ -34,7 +34,7 @@ Account: `323463754688`, region: `eu-north-1`.
 | job-platform-ecs-task-role | arn:aws:iam::323463754688:role/job-platform-ecs-task-role | none attached (task makes no AWS SDK calls at runtime) |
 | job-platform-ecs-execution-role | arn:aws:iam::323463754688:role/job-platform-ecs-execution-role | AmazonECSTaskExecutionRolePolicy (managed) — handles ECR pull, Secrets Manager fetch, CloudWatch Logs write |
 
-IAM user `job-platform-cli`: AdministratorAccess (used for CLI-driven deploys; access key `***REMOVED***`, created 2026-09-06 — flagged for rotation in the earlier security audit, not yet rotated).
+IAM user `job-platform-cli`: AdministratorAccess (used for CLI-driven deploys).
 
 ---
 
